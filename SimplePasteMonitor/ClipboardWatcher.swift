@@ -320,6 +320,14 @@ final class ClipboardWatcher: ObservableObject {
 
     static let historyLimit = 5
 
+    /// Whether replacing the clipboard now loses nothing: what's on it is in
+    /// history (one click brings it back), or there is nothing on it. Not so
+    /// for a password, a type history can't hold, text over the size limit,
+    /// or something still arriving.
+    var currentIsKept: Bool {
+        currentEntryID != nil || (pendingSince == nil && content.isEmpty)
+    }
+
     /// Called when a new clipboard is ready to look at — after the data
     /// arrived, not when it was announced, so a sound means "it's here".
     var onArrival: (() -> Void)?

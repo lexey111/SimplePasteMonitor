@@ -6,6 +6,9 @@ struct ClipView: View {
     let toggleHistory: () -> Void
     let openPrivacySettings: () -> Void
 
+    /// A history row waiting for its confirming second click.
+    @State private var armedEntryID: UUID?
+
     static let sidebarWidth: CGFloat = 140
 
     var body: some View {
@@ -112,40 +115,71 @@ struct ClipView: View {
     }
 
     private func historyRow(_ entry: ClipEntry, isCurrent: Bool) -> some View {
+        let isArmed = armedEntryID == entry.id
         // Not .disabled for the current one: that greys it out, and "now"
         // would read as "unavailable". A click on it just does nothing.
-        Button { if !isCurrent { watcher.restore(entry) } } label: {
+        return Button { historyClicked(entry, isCurrent: isCurrent) } label: {
             HStack(spacing: 6) {
                 historyThumb(entry)
                     .frame(width: 26, height: 26)
                     .clipShape(RoundedRectangle(cornerRadius: 3))
                 VStack(alignment: .leading, spacing: 1) {
-                    Text(verbatim: entry.title)
+                    Text(verbatim: isArmed ? "replace?" : entry.title)
                         .font(.system(size: 10, design: .monospaced))
-                        .foregroundColor(.white.opacity(isCurrent ? 0.9 : 0.7))
+                        .foregroundColor(isArmed ? .orange : .white.opacity(isCurrent ? 0.9 : 0.7))
                         .lineLimit(1)
                         // File names keep their extension; text keeps its start.
                         .truncationMode(entry.fileURL != nil ? .middle : .tail)
                     HStack(spacing: 3) {
-                        // Seconds: a burst of copies all lands in the same minute.
-                        Text(Self.clock.string(from: entry.date))
-                        if entry.isRemote { Image(systemName: "ipad.and.iphone") }
+                        if isArmed {
+                            Text("click again")
+                        } else {
+                            // Seconds: a burst of copies lands in one minute.
+                            Text(Self.clock.string(from: entry.date))
+                            if entry.isRemote { Image(systemName: "ipad.and.iphone") }
+                        }
                     }
                     .lineLimit(1)
                     // Green and highlighted is the one on the clipboard now;
                     // a "now" label didn't fit beside seconds and the phone icon.
                     .font(.system(size: 9, design: .monospaced))
-                    .foregroundColor(isCurrent ? Self.green.opacity(0.8) : .white.opacity(0.35))
+                    .foregroundColor(isArmed ? .orange.opacity(0.8)
+                                     : isCurrent ? Self.green.opacity(0.8) : .white.opacity(0.35))
                 }
                 Spacer(minLength: 0)
             }
             .padding(3)
             .background(RoundedRectangle(cornerRadius: 5)
-                .fill(isCurrent ? Color.white.opacity(0.08) : Color.clear))
+                .fill(isArmed ? Color.orange.opacity(0.12)
+                      : isCurrent ? Color.white.opacity(0.08) : Color.clear))
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .help("\(entry.title)\n\(isCurrent ? "on the clipboard now" : "click to put it back on the clipboard")")
+        .help("\(entry.title)\n\(historyHint(isCurrent: isCurrent))")
+    }
+
+    /// One click puts an entry back — unless what it would replace isn't in
+    /// history itself (a password, a type history can't hold, something
+    /// still arriving). Then the first click arms the row and only a second
+    /// one replaces; left alone, the row disarms after a few seconds.
+    private func historyClicked(_ entry: ClipEntry, isCurrent: Bool) {
+        guard !isCurrent else { return }
+        if watcher.currentIsKept || armedEntryID == entry.id {
+            armedEntryID = nil
+            watcher.restore(entry)
+            return
+        }
+        armedEntryID = entry.id
+        let id = entry.id
+        DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
+            if armedEntryID == id { armedEntryID = nil }
+        }
+    }
+
+    private func historyHint(isCurrent: Bool) -> String {
+        if isCurrent { return "on the clipboard now" }
+        if watcher.currentIsKept { return "click to put it back on the clipboard" }
+        return "what's on the clipboard now isn't kept in history — click twice to replace it"
     }
 
     @ViewBuilder
@@ -385,7 +419,7 @@ struct ClipView: View {
             let total = files.reduce(Int64(0)) { $0 + ($1.isDirectory ? 0 : $1.byteCount ?? 0) }
             if total > 0 { parts.append(Self.bytes(total)) }
         case .other:
-            parts.append("\(watcher.types.count) types")
+            parts.append(watcher.types.count == 1 ? "1 type" : "\(watcher.types.count) types")
         default:
             break
         }
