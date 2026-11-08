@@ -107,8 +107,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         Self.minContentWidth + (showingHistory ? Self.sidebarSpace : 0)
     }
 
+    /// On the display under the mouse pointer, which is where the user is
+    /// looking. Not NSScreen.main: that is the display with keyboard focus,
+    /// it moves with whatever was clicked last, and with two monitors a
+    /// first launch could put the widget on the one nobody was watching —
+    /// seen in testing, the same fresh launch landed on a different display
+    /// two runs in a row. It also makes Reset Widget Position bring the
+    /// widget to the display whose menu bar was clicked.
     private func placeAtDefault(_ window: NSWindow) {
-        let visible = (NSScreen.main ?? NSScreen.screens.first)?.visibleFrame ?? .zero
+        let mouse = NSEvent.mouseLocation
+        let screen = NSScreen.screens.first { NSMouseInRect(mouse, $0.frame, false) }
+            ?? NSScreen.main ?? NSScreen.screens.first
+        let visible = screen?.visibleFrame ?? .zero
         var size = Self.defaultSize
         if state.showHistory { size.width += Self.sidebarSpace }
         // Top-right: bottom-right is where Simple Claude Monitor lives.

@@ -13,7 +13,7 @@ A tiny always-on-top macOS window that shows what is on the clipboard — the pi
 
 ## Download
 
-**[Download SimplePasteMonitor.dmg](https://github.com/lexey111/SimplePasteMonitor/releases/latest/download/SimplePasteMonitor-1.1.0.dmg)**
+**[Download SimplePasteMonitor.dmg](https://github.com/lexey111/SimplePasteMonitor/releases/latest/download/SimplePasteMonitor-1.1.1.dmg)**
 
 ### Install
 
@@ -49,6 +49,6 @@ macOS has no notification for clipboard changes, so the app polls `NSPasteboard.
 
 - macOS 15.4+, Xcode 26+
 - Open `SimplePasteMonitor.xcodeproj`, build and run
-- `./scripts/build-release.sh 1.1.0` builds a Release `.app` and packs it into `build/SimplePasteMonitor-1.1.0.dmg`
+- `./scripts/build-release.sh 1.1.1` builds a Release `.app` and packs it into `build/SimplePasteMonitor-1.1.1.dmg`
 
 Setting `SPM_PASTEBOARD=<name>` in the environment makes the app watch a private named pasteboard instead of the system one — handy for testing without touching your clipboard (and without the privacy prompt, which guards only the system pasteboard).
