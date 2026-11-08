@@ -1,4 +1,5 @@
 import AppKit
+import Combine
 import SwiftUI
 
 @main
@@ -10,9 +11,19 @@ struct SimplePasteMonitorApp: App {
     }
 }
 
-final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWindowDelegate {
+/// Window-level state the SwiftUI view shares with the app delegate.
+final class WidgetState: ObservableObject {
+    @Published var showHistory: Bool
+    init(showHistory: Bool) { self.showHistory = showHistory }
+}
+
+final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private static let frameName = "SimplePasteMonitor.widget"
     private static let soundKey = "arrivalSound"
+    private static let historyKey = "showHistory"
+    private static let minContentWidth: CGFloat = 180
+    /// Sidebar plus its 1-pt divider.
+    private static let sidebarSpace = ClipView.sidebarWidth + 1
     private static let defaultSize = NSSize(width: 280, height: 220)
     private static let privacySettingsURL =
         URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Pasteboard")!
@@ -20,6 +31,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
     private var panel: NSPanel!
     private var statusItem: NSStatusItem!
     private var watcher: ClipboardWatcher!
+    private let state = WidgetState(showHistory: UserDefaults.standard.bool(forKey: historyKey))
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
@@ -42,38 +54,36 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
     // MARK: - Widget window
 
     private func makePanel() -> NSPanel {
-        // Titled, so the system gives it edge resizing, rounded corners and a
-        // matching shadow — then every visible trace of the title bar is
-        // taken away.
+        // Borderless, resizable. Not titled with the title bar hidden: an
+        // invisible title bar still owns its strip, and the controls in the
+        // header — which lives there — never got a click.
         let panel = NSPanel(
             contentRect: NSRect(origin: .zero, size: Self.defaultSize),
-            styleMask: [.titled, .resizable, .fullSizeContentView, .nonactivatingPanel],
+            styleMask: [.nonactivatingPanel, .resizable, .fullSizeContentView],
             backing: .buffered,
             defer: false
         )
-        panel.titleVisibility = .hidden
-        panel.titlebarAppearsTransparent = true
-        for button in [NSWindow.ButtonType.closeButton, .miniaturizeButton, .zoomButton] {
-            panel.standardWindowButton(button)?.isHidden = true
-        }
         panel.level = .floating
         panel.isFloatingPanel = true
         panel.hidesOnDeactivate = false
         panel.becomesKeyOnlyIfNeeded = true
         panel.collectionBehavior = [.canJoinAllSpaces, .stationary, .ignoresCycle, .fullScreenAuxiliary]
         panel.appearance = NSAppearance(named: .darkAqua)
+        // The rounded background is drawn by ClipView; the shadow follows it.
         panel.isOpaque = false
-        panel.backgroundColor = NSColor(white: 0.12, alpha: 0.92)
+        panel.backgroundColor = .clear
         panel.hasShadow = true
         // Dragging is done by WindowDragGesture in ClipView: on macOS 27 an
         // NSHostingView no longer offers its background for window moves.
         panel.isMovableByWindowBackground = false
-        panel.contentMinSize = NSSize(width: 180, height: 110)
-        panel.delegate = self
+        panel.contentMinSize = NSSize(width: minWidth(showingHistory: state.showHistory), height: 110)
 
-        let host = NSHostingView(rootView: ClipView(watcher: watcher) { [weak self] in
-            self?.openPrivacySettings()
-        })
+        let host = NSHostingView(rootView: ClipView(
+            watcher: watcher,
+            state: state,
+            toggleHistory: { [weak self] in self?.toggleHistory() },
+            openPrivacySettings: { [weak self] in self?.openPrivacySettings() }
+        ))
         host.sizingOptions = []   // the user sizes this window, not its content
         panel.contentView = host
 
@@ -93,17 +103,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
         NSScreen.screens.contains { $0.visibleFrame.intersects(frame.insetBy(dx: 40, dy: 40)) }
     }
 
+    private func minWidth(showingHistory: Bool) -> CGFloat {
+        Self.minContentWidth + (showingHistory ? Self.sidebarSpace : 0)
+    }
+
     private func placeAtDefault(_ window: NSWindow) {
         let visible = (NSScreen.main ?? NSScreen.screens.first)?.visibleFrame ?? .zero
-        let size = Self.defaultSize
+        var size = Self.defaultSize
+        if state.showHistory { size.width += Self.sidebarSpace }
         // Top-right: bottom-right is where Simple Claude Monitor lives.
         let origin = NSPoint(x: visible.maxX - size.width - 20, y: visible.maxY - size.height - 20)
         window.setFrame(NSRect(origin: origin, size: size), display: true)
     }
 
-    /// A double-click on the (invisible) title bar would zoom the widget to
-    /// fill the screen.
-    func windowShouldZoom(_ window: NSWindow, toFrame newFrame: NSRect) -> Bool { false }
 
     // MARK: - Menu bar
 
@@ -115,6 +127,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
         let menu = NSMenu()
         menu.delegate = self
         menu.addItem(item("Show Widget", #selector(toggleWidget)))
+        menu.addItem(item("Show History", #selector(toggleHistory)))
         let sound = NSMenuItem(title: "Sound on Arrival", action: nil, keyEquivalent: "")
         sound.submenu = soundMenu()
         menu.addItem(sound)
@@ -158,6 +171,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
             switch item.action {
             case #selector(toggleWidget):
                 item.state = panel.isVisible ? .on : .off
+            case #selector(toggleHistory):
+                item.state = state.showHistory ? .on : .off
             case #selector(selectSound(_:)):
                 item.state = (item.representedObject as? String) == current ? .on : .off
             default:
@@ -170,6 +185,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
 
     @objc private func toggleWidget() {
         if panel.isVisible { panel.orderOut(nil) } else { panel.orderFrontRegardless() }
+    }
+
+    /// The sidebar opens to the left and the window grows by its width, so
+    /// the clipboard you were watching stays exactly where it was.
+    @objc private func toggleHistory() {
+        let show = !state.showHistory
+        var frame = panel.frame
+        let delta = show ? Self.sidebarSpace : -Self.sidebarSpace
+        frame.origin.x -= delta
+        frame.size.width += delta
+        // No room on the left: grow to the right instead.
+        if let visible = panel.screen?.visibleFrame, frame.minX < visible.minX {
+            frame.origin.x = visible.minX
+        }
+        panel.contentMinSize.width = minWidth(showingHistory: show)
+        state.showHistory = show
+        panel.setFrame(frame, display: true)
+        UserDefaults.standard.set(show, forKey: Self.historyKey)
+        panel.orderFrontRegardless()
     }
 
     @objc private func resetPosition() {

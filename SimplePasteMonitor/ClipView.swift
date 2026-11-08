@@ -2,9 +2,46 @@ import SwiftUI
 
 struct ClipView: View {
     @ObservedObject var watcher: ClipboardWatcher
+    @ObservedObject var state: WidgetState
+    let toggleHistory: () -> Void
     let openPrivacySettings: () -> Void
 
+    static let sidebarWidth: CGFloat = 140
+
     var body: some View {
+        HStack(spacing: 0) {
+            if state.showHistory {
+                historyColumn
+                Rectangle()
+                    .fill(Color.white.opacity(0.08))
+                    .frame(width: 1)
+            }
+            mainColumn
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(windowBackground)
+        .contentShape(Rectangle())
+        // The whole window is the handle: on macOS 27 an NSHostingView no
+        // longer offers its background for isMovableByWindowBackground.
+        .gesture(WindowDragGesture())
+    }
+
+    private var windowBackground: some View {
+        ZStack {
+            // All but invisible, and there for the mouse: clicks on fully
+            // transparent pixels fall through the window, and the rounded
+            // corners are exactly where you grab to resize.
+            Color.black.opacity(0.001)
+            RoundedRectangle(cornerRadius: 14)
+                .fill(Color(white: 0.12, opacity: 0.92))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 14)
+                        .strokeBorder(Color.white.opacity(0.08), lineWidth: 0.5)
+                )
+        }
+    }
+
+    private var mainColumn: some View {
         VStack(alignment: .leading, spacing: 6) {
             header
 
@@ -39,17 +76,112 @@ struct ClipView: View {
         }
         .padding(EdgeInsets(top: 7, leading: 12, bottom: 9, trailing: 12))
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .ignoresSafeArea()
-        .contentShape(Rectangle())
-        // The header sits in the (invisible) title bar and drags natively;
-        // this makes the rest of the window a handle too.
-        .gesture(WindowDragGesture())
+    }
+
+    // MARK: - History
+
+    private var historyColumn: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 6) {
+                sidebarToggle
+                Text("history")
+                    .font(.system(size: 11, weight: .semibold, design: .monospaced))
+                    .foregroundColor(.white.opacity(0.45))
+                Spacer(minLength: 0)
+            }
+            .frame(height: 16)
+
+            if watcher.history.isEmpty {
+                Text("nothing yet")
+                    .font(.system(size: 10, design: .monospaced))
+                    .foregroundColor(.white.opacity(0.3))
+                Spacer(minLength: 0)
+            } else {
+                ScrollView(.vertical, showsIndicators: false) {
+                    VStack(spacing: 3) {
+                        ForEach(watcher.history) { entry in
+                            historyRow(entry, isCurrent: entry.id == watcher.currentEntryID)
+                        }
+                    }
+                }
+            }
+        }
+        .padding(EdgeInsets(top: 7, leading: 10, bottom: 9, trailing: 8))
+        .frame(width: Self.sidebarWidth)
+        .frame(maxHeight: .infinity, alignment: .top)
+    }
+
+    private func historyRow(_ entry: ClipEntry, isCurrent: Bool) -> some View {
+        // Not .disabled for the current one: that greys it out, and "now"
+        // would read as "unavailable". A click on it just does nothing.
+        Button { if !isCurrent { watcher.restore(entry) } } label: {
+            HStack(spacing: 6) {
+                historyThumb(entry)
+                    .frame(width: 26, height: 26)
+                    .clipShape(RoundedRectangle(cornerRadius: 3))
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(verbatim: entry.title)
+                        .font(.system(size: 10, design: .monospaced))
+                        .foregroundColor(.white.opacity(isCurrent ? 0.9 : 0.7))
+                        .lineLimit(1)
+                        // File names keep their extension; text keeps its start.
+                        .truncationMode(entry.fileURL != nil ? .middle : .tail)
+                    HStack(spacing: 3) {
+                        // Seconds: a burst of copies all lands in the same minute.
+                        Text(Self.clock.string(from: entry.date))
+                        if entry.isRemote { Image(systemName: "ipad.and.iphone") }
+                    }
+                    .lineLimit(1)
+                    // Green and highlighted is the one on the clipboard now;
+                    // a "now" label didn't fit beside seconds and the phone icon.
+                    .font(.system(size: 9, design: .monospaced))
+                    .foregroundColor(isCurrent ? Self.green.opacity(0.8) : .white.opacity(0.35))
+                }
+                Spacer(minLength: 0)
+            }
+            .padding(3)
+            .background(RoundedRectangle(cornerRadius: 5)
+                .fill(isCurrent ? Color.white.opacity(0.08) : Color.clear))
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .help("\(entry.title)\n\(isCurrent ? "on the clipboard now" : "click to put it back on the clipboard")")
+    }
+
+    @ViewBuilder
+    private func historyThumb(_ entry: ClipEntry) -> some View {
+        if let thumbnail = entry.thumbnail {
+            Image(decorative: thumbnail, scale: 1)
+                .resizable()
+                .aspectRatio(contentMode: .fill)
+        } else if let url = entry.fileURL {
+            Image(nsImage: NSWorkspace.shared.icon(forFile: url.path))
+                .resizable()
+        } else {
+            ZStack {
+                Color.white.opacity(0.06)
+                Image(systemName: "text.alignleft")
+                    .font(.system(size: 11))
+                    .foregroundColor(.white.opacity(0.4))
+            }
+        }
+    }
+
+    private var sidebarToggle: some View {
+        Button(action: toggleHistory) {
+            Image(systemName: "sidebar.left")
+                .font(.system(size: 11))
+                .foregroundColor(.white.opacity(state.showHistory ? 0.6 : 0.35))
+        }
+        .buttonStyle(.plain)
+        .help(state.showHistory ? "Hide history" : "Show history")
     }
 
     // MARK: - Header
 
     private var header: some View {
         HStack(spacing: 6) {
+            if !state.showHistory { sidebarToggle }
             Circle()
                 .fill(dotColor)
                 .frame(width: 6, height: 6)
@@ -90,9 +222,11 @@ struct ClipView: View {
         switch watcher.content {
         case .empty:      return .white.opacity(0.25)
         case .unreadable: return .orange
-        default:          return Color(red: 0x1D / 255, green: 0xB9 / 255, blue: 0x54 / 255)
+        default:          return Self.green
         }
     }
+
+    private static let green = Color(red: 0x1D / 255, green: 0xB9 / 255, blue: 0x54 / 255)
 
     // MARK: - Content
 
@@ -262,7 +396,11 @@ struct ClipView: View {
         if let wait = watcher.lastWait, watcher.isRemote || wait > 0.3 {
             parts.append(String(format: "⇣ %.1f s", wait))
         }
-        if let source = watcher.sourceName { parts.append(source) }
+        if watcher.isRestored {
+            parts.append("restored")
+        } else if let source = watcher.sourceName {
+            parts.append(source)
+        }
         return parts.isEmpty ? nil : parts.joined(separator: " · ")
     }
 
@@ -273,6 +411,7 @@ struct ClipView: View {
         formatter.dateFormat = "HH:mm:ss"
         return formatter
     }()
+
 
     private static func bytes(_ count: Int64) -> String {
         ByteCountFormatter.string(fromByteCount: count, countStyle: .file)
