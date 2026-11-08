@@ -17,8 +17,9 @@ final class WidgetState: ObservableObject {
     init(showHistory: Bool) { self.showHistory = showHistory }
 }
 
-final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
+final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWindowDelegate {
     private static let frameName = "SimplePasteMonitor.widget"
+    private static let frameKey = "widgetFrame"
     private static let soundKey = "arrivalSound"
     private static let historyKey = "showHistory"
     private static let minContentWidth: CGFloat = 180
@@ -89,14 +90,48 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
         // Position and size come back from the last run — unless that spot is
         // gone (a display unplugged since), which would leave it off-screen.
-        if !panel.setFrameUsingName(Self.frameName) || !isOnScreen(panel.frame) {
+        if let saved = savedFrame(), isOnScreen(saved) {
+            panel.setFrame(saved, display: false)
+        } else {
             placeAtDefault(panel)
         }
-        panel.setFrameAutosaveName(Self.frameName)
         // Saved now, not at the first move: otherwise a widget never touched
-        // would be re-placed on whichever display is "main" next launch.
-        panel.saveFrame(usingName: Self.frameName)
+        // would be re-placed somewhere else next launch. (The window itself is
+        // passed: `self.panel` isn't assigned until this method returns.)
+        saveFrame(of: panel)
+        panel.delegate = self
         return panel
+    }
+
+    // The frame is kept by hand, not with setFrameAutosaveName: AppKit
+    // matches the saved display by its *visible* frame, which on a second
+    // monitor changes whenever the Dock moves there. No match reads as "that
+    // display is gone", and the widget got moved to the main display and
+    // re-saved there — seen with a widget left on the lower of two monitors.
+    // Here the frame is restored as it was whenever it is still on a screen.
+
+    private func savedFrame() -> NSRect? {
+        if let string = UserDefaults.standard.string(forKey: Self.frameKey) {
+            let frame = NSRectFromString(string)
+            return frame.width > 0 && frame.height > 0 ? frame : nil
+        }
+        // 1.0–1.1 kept it under AppKit's autosave key: "x y w h <screen>".
+        let legacy = UserDefaults.standard.string(forKey: "NSWindow Frame \(Self.frameName)")?
+            .split(separator: " ").prefix(4).compactMap { Double($0) }
+        guard let legacy, legacy.count == 4, legacy[2] > 0, legacy[3] > 0 else { return nil }
+        return NSRect(x: legacy[0], y: legacy[1], width: legacy[2], height: legacy[3])
+    }
+
+    private func saveFrame(of window: NSWindow) {
+        UserDefaults.standard.set(NSStringFromRect(window.frame), forKey: Self.frameKey)
+    }
+
+    func windowDidMove(_ notification: Notification) {
+        (notification.object as? NSWindow).map(saveFrame(of:))
+    }
+
+    func windowDidResize(_ notification: Notification) {
+        (notification.object as? NSWindow).map(saveFrame(of:))
     }
 
     private func isOnScreen(_ frame: NSRect) -> Bool {
