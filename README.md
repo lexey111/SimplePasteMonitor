@@ -7,13 +7,13 @@ A tiny always-on-top macOS window that shows what is on the clipboard — the pi
 
 ## Screenshots
 
-| Receiving from iPhone | Arrived | Text |
-|------|--------|------|
-| ![Receiving](screenshot1.png) | ![Arrived](screenshot2.png) | ![Text](screenshot3.png) |
+| Receiving from iPhone | Arrived | Text | History |
+|------|--------|------|------|
+| ![Receiving](screenshot1.png) | ![Arrived](screenshot2.png) | ![Text](screenshot3.png) | ![History](screenshot4.png) |
 
 ## Download
 
-**[Download SimplePasteMonitor.dmg](https://github.com/lexey111/SimplePasteMonitor/releases/latest/download/SimplePasteMonitor-1.0.0.dmg)**
+**[Download SimplePasteMonitor.dmg](https://github.com/lexey111/SimplePasteMonitor/releases/latest/download/SimplePasteMonitor-1.1.0.dmg)**
 
 ### Install
 
@@ -36,6 +36,7 @@ A tiny always-on-top macOS window that shows what is on the clipboard — the pi
 - **Text** — the head of it, cut with an ellipsis where the window ends, plus character and line counts
 - **Files** — names, icons and sizes; a single copied image file is shown as the image
 - **Everything else** — the list of pasteboard types
+- **History of the last five** — the sidebar button (or **Show History** in the menu) opens the last five clipboards; a click puts one back. For the screenshot that arrived and then got overwritten by a stray auto-copy in a terminal. The original bytes go back, plus a PNG when they were HEIC — plenty of apps take nothing else. Kept in memory only, never on disk, and concealed items never enter it
 - **Passwords stay hidden** — items marked concealed by password managers (the [nspasteboard.org](http://nspasteboard.org) convention) are never read, only reported as concealed
 - **Source app** — when the sender says who it is
 - **Floating, resizable, remembered** — stays above other windows on all Spaces; drag it anywhere, resize from any edge, position and size survive restarts. **Reset Widget Position** in the menu brings it back if a display goes away
@@ -48,6 +49,6 @@ macOS has no notification for clipboard changes, so the app polls `NSPasteboard.
 
 - macOS 15.4+, Xcode 26+
 - Open `SimplePasteMonitor.xcodeproj`, build and run
-- `./scripts/build-release.sh 1.0.0` builds a Release `.app` and packs it into `build/SimplePasteMonitor-1.0.0.dmg`
+- `./scripts/build-release.sh 1.1.0` builds a Release `.app` and packs it into `build/SimplePasteMonitor-1.1.0.dmg`
 
 Setting `SPM_PASTEBOARD=<name>` in the environment makes the app watch a private named pasteboard instead of the system one — handy for testing without touching your clipboard (and without the privacy prompt, which guards only the system pasteboard).
