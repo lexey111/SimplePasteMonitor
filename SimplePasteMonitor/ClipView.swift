@@ -8,6 +8,9 @@ struct ClipView: View {
 
     /// A history row waiting for its confirming second click.
     @State private var armedEntryID: UUID?
+    /// Follows the window's appearance — the menu's choice, or macOS's.
+    @Environment(\.colorScheme) private var colorScheme
+    private var theme: Theme { .of(colorScheme) }
 
     static let sidebarWidth: CGFloat = 140
 
@@ -16,7 +19,7 @@ struct ClipView: View {
             if state.showHistory {
                 historyColumn
                 Rectangle()
-                    .fill(Color.white.opacity(0.08))
+                    .fill(theme.ink.opacity(0.08))
                     .frame(width: 1)
             }
             mainColumn
@@ -36,10 +39,10 @@ struct ClipView: View {
             // corners are exactly where you grab to resize.
             Color.black.opacity(0.001)
             RoundedRectangle(cornerRadius: 14)
-                .fill(Color(white: 0.12, opacity: 0.92))
+                .fill(theme.background)
                 .overlay(
                     RoundedRectangle(cornerRadius: 14)
-                        .strokeBorder(Color.white.opacity(0.08), lineWidth: 0.5)
+                        .strokeBorder(theme.stroke, lineWidth: 0.5)
                 )
         }
     }
@@ -71,7 +74,7 @@ struct ClipView: View {
                 // clipboard's, the content still the old one's.
                 Text(verbatim: footer)
                     .font(.system(size: 10, design: .monospaced))
-                    .foregroundColor(.white.opacity(0.4))
+                    .foregroundColor(theme.ink.opacity(0.4))
                     .lineLimit(1)
                     .truncationMode(.middle)
                     .help(watcher.types.joined(separator: "\n"))
@@ -89,7 +92,7 @@ struct ClipView: View {
                 sidebarToggle
                 Text("history")
                     .font(.system(size: 11, weight: .semibold, design: .monospaced))
-                    .foregroundColor(.white.opacity(0.45))
+                    .foregroundColor(theme.ink.opacity(0.45))
                 Spacer(minLength: 0)
             }
             .frame(height: 16)
@@ -97,7 +100,7 @@ struct ClipView: View {
             if watcher.history.isEmpty {
                 Text("nothing yet")
                     .font(.system(size: 10, design: .monospaced))
-                    .foregroundColor(.white.opacity(0.3))
+                    .foregroundColor(theme.ink.opacity(0.3))
                 Spacer(minLength: 0)
             } else {
                 ScrollView(.vertical, showsIndicators: false) {
@@ -126,7 +129,7 @@ struct ClipView: View {
                 VStack(alignment: .leading, spacing: 1) {
                     Text(verbatim: isArmed ? "replace?" : entry.title)
                         .font(.system(size: 10, design: .monospaced))
-                        .foregroundColor(isArmed ? .orange : .white.opacity(isCurrent ? 0.9 : 0.7))
+                        .foregroundColor(isArmed ? theme.orange : theme.ink.opacity(isCurrent ? 0.9 : 0.7))
                         .lineLimit(1)
                         // File names keep their extension; text keeps its start.
                         .truncationMode(entry.fileURL != nil ? .middle : .tail)
@@ -143,15 +146,15 @@ struct ClipView: View {
                     // Green and highlighted is the one on the clipboard now;
                     // a "now" label didn't fit beside seconds and the phone icon.
                     .font(.system(size: 9, design: .monospaced))
-                    .foregroundColor(isArmed ? .orange.opacity(0.8)
-                                     : isCurrent ? Self.green.opacity(0.8) : .white.opacity(0.35))
+                    .foregroundColor(isArmed ? theme.orange.opacity(0.8)
+                                     : isCurrent ? theme.green.opacity(0.8) : theme.ink.opacity(0.35))
                 }
                 Spacer(minLength: 0)
             }
             .padding(3)
             .background(RoundedRectangle(cornerRadius: 5)
-                .fill(isArmed ? Color.orange.opacity(0.12)
-                      : isCurrent ? Color.white.opacity(0.08) : Color.clear))
+                .fill(isArmed ? theme.orange.opacity(0.12)
+                      : isCurrent ? theme.ink.opacity(0.08) : Color.clear))
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -193,10 +196,10 @@ struct ClipView: View {
                 .resizable()
         } else {
             ZStack {
-                Color.white.opacity(0.06)
+                theme.ink.opacity(0.06)
                 Image(systemName: "text.alignleft")
                     .font(.system(size: 11))
-                    .foregroundColor(.white.opacity(0.4))
+                    .foregroundColor(theme.ink.opacity(0.4))
             }
         }
     }
@@ -205,7 +208,7 @@ struct ClipView: View {
         Button(action: toggleHistory) {
             Image(systemName: "sidebar.left")
                 .font(.system(size: 11))
-                .foregroundColor(.white.opacity(state.showHistory ? 0.6 : 0.35))
+                .foregroundColor(theme.ink.opacity(state.showHistory ? 0.6 : 0.35))
         }
         .buttonStyle(.plain)
         .help(state.showHistory ? "Hide history" : "Show history")
@@ -221,18 +224,18 @@ struct ClipView: View {
                 .frame(width: 6, height: 6)
             Text(kindLabel)
                 .font(.system(size: 11, weight: .semibold, design: .monospaced))
-                .foregroundColor(.white.opacity(0.65))
+                .foregroundColor(theme.ink.opacity(0.65))
                 .lineLimit(1)
             if watcher.isRemote {
                 Image(systemName: "ipad.and.iphone")
                     .font(.system(size: 10))
-                    .foregroundColor(.white.opacity(0.45))
+                    .foregroundColor(theme.ink.opacity(0.45))
             }
             Spacer(minLength: 4)
             if let changedAt = watcher.changedAt {
                 Text(Self.clock.string(from: changedAt))
                     .font(.system(size: 10, design: .monospaced))
-                    .foregroundColor(.white.opacity(0.3))
+                    .foregroundColor(theme.ink.opacity(0.3))
             }
         }
         .frame(height: 16)
@@ -252,15 +255,14 @@ struct ClipView: View {
     }
 
     private var dotColor: Color {
-        if watcher.pendingSince != nil { return .yellow }
+        if watcher.pendingSince != nil { return theme.yellow }
         switch watcher.content {
-        case .empty:      return .white.opacity(0.25)
-        case .unreadable: return .orange
-        default:          return Self.green
+        case .empty:      return theme.ink.opacity(0.25)
+        case .unreadable: return theme.orange
+        default:          return theme.green
         }
     }
 
-    private static let green = Color(red: 0x1D / 255, green: 0xB9 / 255, blue: 0x54 / 255)
 
     // MARK: - Content
 
@@ -281,7 +283,7 @@ struct ClipView: View {
             // the window ends.
             Text(verbatim: text.preview.isEmpty ? "(empty string)" : text.preview)
                 .font(.system(size: 11, design: .monospaced))
-                .foregroundColor(.white.opacity(text.preview.isEmpty ? 0.4 : 0.85))
+                .foregroundColor(theme.ink.opacity(text.preview.isEmpty ? 0.4 : 0.85))
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         case .files(let files):
             filesView(files)
@@ -303,12 +305,12 @@ struct ClipView: View {
                         .resizable()
                         .frame(width: 16, height: 16)
                     Text(verbatim: file.name)
-                        .foregroundColor(.white.opacity(0.85))
+                        .foregroundColor(theme.ink.opacity(0.85))
                         .lineLimit(1)
                         .truncationMode(.middle)
                     Spacer(minLength: 4)
                     if let size = file.byteCount, !file.isDirectory {
-                        Text(Self.bytes(size)).foregroundColor(.white.opacity(0.35))
+                        Text(Self.bytes(size)).foregroundColor(theme.ink.opacity(0.35))
                     }
                 }
                 .font(.system(size: 11, design: .monospaced))
@@ -316,7 +318,7 @@ struct ClipView: View {
             if files.count > shown {
                 Text("+ \(files.count - shown) more")
                     .font(.system(size: 10, design: .monospaced))
-                    .foregroundColor(.white.opacity(0.35))
+                    .foregroundColor(theme.ink.opacity(0.35))
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
@@ -330,7 +332,7 @@ struct ClipView: View {
             ForEach(watcher.types, id: \.self) { type in
                 Text(verbatim: type)
                     .font(.system(size: 10, design: .monospaced))
-                    .foregroundColor(.white.opacity(0.6))
+                    .foregroundColor(theme.ink.opacity(0.6))
                     .lineLimit(1)
                     .truncationMode(.middle)
             }
@@ -343,12 +345,12 @@ struct ClipView: View {
         VStack(spacing: 8) {
             Image(systemName: "exclamationmark.triangle")
                 .font(.system(size: 16))
-                .foregroundColor(.orange.opacity(0.7))
+                .foregroundColor(theme.orange.opacity(0.7))
             Text(watcher.access == .alwaysDeny
                  ? "clipboard access is denied"
                  : "the data didn't come through")
                 .font(.system(size: 10, design: .monospaced))
-                .foregroundColor(.white.opacity(0.5))
+                .foregroundColor(theme.ink.opacity(0.5))
             if watcher.access == .alwaysDeny {
                 Button("Privacy Settings", action: openPrivacySettings)
                     .controlSize(.small)
@@ -362,10 +364,10 @@ struct ClipView: View {
             ProgressView().controlSize(.small)
             Text(watcher.isRemote ? "receiving from iPhone / iPad" : "reading")
                 .font(.system(size: 10, design: .monospaced))
-                .foregroundColor(.white.opacity(0.5))
+                .foregroundColor(theme.ink.opacity(0.5))
             Text(String(format: "%.1f s", elapsed))
                 .font(.system(size: 13, weight: .semibold, design: .monospaced))
-                .foregroundColor(.yellow.opacity(0.8))
+                .foregroundColor(theme.yellow.opacity(0.8))
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
@@ -374,10 +376,10 @@ struct ClipView: View {
         VStack(spacing: 6) {
             Image(systemName: systemImage)
                 .font(.system(size: 18))
-                .foregroundColor(.white.opacity(0.25))
+                .foregroundColor(theme.ink.opacity(0.25))
             Text(text)
                 .font(.system(size: 10, design: .monospaced))
-                .foregroundColor(.white.opacity(0.4))
+                .foregroundColor(theme.ink.opacity(0.4))
                 .multilineTextAlignment(.center)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -389,16 +391,16 @@ struct ClipView: View {
         HStack(spacing: 6) {
             Image(systemName: "exclamationmark.triangle")
                 .font(.system(size: 9))
-                .foregroundColor(.yellow.opacity(0.7))
+                .foregroundColor(theme.yellow.opacity(0.7))
             Text("macOS asks on every copy")
                 .font(.system(size: 10, design: .monospaced))
-                .foregroundColor(.yellow.opacity(0.8))
+                .foregroundColor(theme.yellow.opacity(0.8))
                 .lineLimit(1)
             Spacer(minLength: 4)
             Button("Always Allow…", action: openPrivacySettings)
                 .buttonStyle(.plain)
                 .font(.system(size: 10, weight: .semibold, design: .monospaced))
-                .foregroundColor(.yellow)
+                .foregroundColor(theme.yellow)
         }
     }
 

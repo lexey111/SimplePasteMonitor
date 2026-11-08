@@ -69,7 +69,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
         panel.hidesOnDeactivate = false
         panel.becomesKeyOnlyIfNeeded = true
         panel.collectionBehavior = [.canJoinAllSpaces, .stationary, .ignoresCycle, .fullScreenAuxiliary]
-        panel.appearance = NSAppearance(named: .darkAqua)
+        // ClipView picks its Theme from the color scheme this resolves to.
+        panel.appearance = AppearanceSetting.current.nsAppearance
         // The rounded background is drawn by ClipView; the shadow follows it.
         panel.isOpaque = false
         panel.backgroundColor = .clear
@@ -176,6 +177,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
         let sound = NSMenuItem(title: "Sound on Arrival", action: nil, keyEquivalent: "")
         sound.submenu = soundMenu()
         menu.addItem(sound)
+        let appearance = NSMenuItem(title: "Appearance", action: nil, keyEquivalent: "")
+        appearance.submenu = appearanceMenu()
+        menu.addItem(appearance)
         menu.addItem(item("Reset Widget Position", #selector(resetPosition)))
         menu.addItem(.separator())
         menu.addItem(item("Clipboard Privacy Settings…", #selector(openPrivacySettings)))
@@ -210,10 +214,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
         return menu
     }
 
+    private func appearanceMenu() -> NSMenu {
+        let menu = NSMenu()
+        menu.delegate = self
+        for setting in AppearanceSetting.allCases {
+            let entry = item(setting.title, #selector(selectAppearance(_:)))
+            entry.representedObject = setting.rawValue
+            menu.addItem(entry)
+            if setting == .system { menu.addItem(.separator()) }
+        }
+        return menu
+    }
+
     func menuNeedsUpdate(_ menu: NSMenu) {
         let current = UserDefaults.standard.string(forKey: Self.soundKey) ?? ""
         for item in menu.items {
             switch item.action {
+            case #selector(selectAppearance(_:)):
+                item.state = (item.representedObject as? String) == AppearanceSetting.current.rawValue ? .on : .off
             case #selector(toggleWidget):
                 item.state = panel.isVisible ? .on : .off
             case #selector(toggleHistory):
@@ -254,6 +272,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
     @objc private func resetPosition() {
         placeAtDefault(panel)
         panel.orderFrontRegardless()
+    }
+
+    @objc private func selectAppearance(_ sender: NSMenuItem) {
+        guard let raw = sender.representedObject as? String,
+              let setting = AppearanceSetting(rawValue: raw) else { return }
+        UserDefaults.standard.set(raw, forKey: AppearanceSetting.key)
+        panel.appearance = setting.nsAppearance
     }
 
     @objc private func selectSound(_ sender: NSMenuItem) {
