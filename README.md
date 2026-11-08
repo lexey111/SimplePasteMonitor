@@ -13,7 +13,7 @@ A tiny always-on-top macOS window that shows what is on the clipboard — the pi
 
 ## Download
 
-**[Download SimplePasteMonitor.dmg](https://github.com/lexey111/SimplePasteMonitor/releases/latest/download/SimplePasteMonitor-1.2.0.dmg)**
+**[Download SimplePasteMonitor.dmg](https://github.com/lexey111/SimplePasteMonitor/releases/latest/download/SimplePasteMonitor-1.3.0.dmg)**
 
 ### Install
 
@@ -39,6 +39,7 @@ A tiny always-on-top macOS window that shows what is on the clipboard — the pi
 - **History of the last five** — the sidebar button (or **Show History** in the menu) opens the last five clipboards; a click puts one back. Two clicks when what's on the clipboard now isn't in history itself — a password, a type history can't hold — so a slip of the mouse can't lose it; the row asks *replace? click again*. For the screenshot that arrived and then got overwritten by a stray auto-copy in a terminal. The original bytes go back, plus a PNG when they were HEIC — plenty of apps take nothing else. Kept in memory only, never on disk, and concealed items never enter it
 - **Passwords stay hidden** — items marked concealed by password managers (the [nspasteboard.org](http://nspasteboard.org) convention) are never read, only reported as concealed
 - **Source app** — when the sender says who it is
+- **Light and dark** — follows macOS, or pinned to either under **Appearance** in the menu bar; the light theme has its own darker accents, so the yellow and orange states stay readable
 - **Floating, resizable, remembered** — stays above other windows on all Spaces; drag it anywhere, resize from any edge, position and size survive restarts. **Reset Widget Position** in the menu brings it back if a display goes away
 
 ## How It Works
@@ -49,6 +50,6 @@ macOS has no notification for clipboard changes, so the app polls `NSPasteboard.
 
 - macOS 15.4+, Xcode 26+
 - Open `SimplePasteMonitor.xcodeproj`, build and run
-- `./scripts/build-release.sh 1.2.0` builds a Release `.app` and packs it into `build/SimplePasteMonitor-1.2.0.dmg`
+- `./scripts/build-release.sh 1.3.0` builds a Release `.app` and packs it into `build/SimplePasteMonitor-1.3.0.dmg`
 
 Setting `SPM_PASTEBOARD=<name>` in the environment makes the app watch a private named pasteboard instead of the system one — handy for testing without touching your clipboard (and without the privacy prompt, which guards only the system pasteboard).
