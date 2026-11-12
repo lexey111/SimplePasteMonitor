@@ -18,12 +18,16 @@ nonisolated struct ClipImage: @unchecked Sendable {   // CGImage is immutable
     let fileName: String?
 }
 
-nonisolated struct ClipText: Sendable {
+nonisolated struct ClipText: @unchecked Sendable {   // CGImage is immutable
     /// The head of the text — more than any window will show, far less than
     /// a pasted log file can be.
     let preview: String
     let characterCount: Int
     let lineCount: Int
+    /// Pictures that travel inside styled text (RTFD): how many there are,
+    /// and the first few at the widget's size.
+    var pictureCount = 0
+    var pictures: [CGImage] = []
 }
 
 nonisolated struct ClipFile: Sendable, Identifiable {
@@ -58,6 +62,8 @@ nonisolated enum ClipContent: Sendable {
 nonisolated enum ClipPayload: Sendable, Equatable {
     case image(type: String, data: Data)
     case text(String)
+    /// Styled text with pictures in it: the RTFD as it came, and its words.
+    case rich(rtfd: Data, text: String)
     case files([URL])
 }
 
@@ -171,6 +177,41 @@ nonisolated enum ClipLoader {
     }
 
     private static func text(from pasteboard: NSPasteboard) -> ClipLoad {
+        // Text with pictures in it travels as RTFD, and its plain form names
+        // the words alone: two letters and a screenshot read «2 chars». The
+        // pictures are looked for first.
+        if pasteboard.types?.contains(.rtfd) == true, let rtfd = pasteboard.data(forType: .rtfd),
+           let rich = NSAttributedString(rtfd: rtfd, documentAttributes: nil) {
+            var count = 0
+            var pictures: [CGImage] = []
+            var small: CGImage?
+            rich.enumerateAttribute(.attachment, in: NSRange(location: 0, length: rich.length)) { value, _, _ in
+                guard let attachment = value as? NSTextAttachment else { return }
+                count += 1
+                guard pictures.count < 3, let bytes = attachment.fileWrapper?.regularFileContents,
+                      let source = CGImageSourceCreateWithData(bytes as CFData, nil) else { return }
+                let options: [CFString: Any] = [
+                    kCGImageSourceCreateThumbnailFromImageAlways: true,
+                    kCGImageSourceCreateThumbnailWithTransform: true,
+                    kCGImageSourceThumbnailMaxPixelSize: 900,
+                ]
+                if let image = CGImageSourceCreateThumbnailAtIndex(source, 0, options as CFDictionary) {
+                    pictures.append(image)
+                    if small == nil { small = thumbnail(source) }
+                }
+            }
+            if count > 0 {
+                let words = rich.string.replacingOccurrences(of: "\u{FFFC}", with: "")
+                var lines = words.isEmpty ? 0 : 1
+                for byte in words.utf8 where byte == 0x0A { lines += 1 }
+                if words.hasSuffix("\n") { lines -= 1 }
+                let content = ClipContent.text(ClipText(
+                    preview: String(words.trimmingCharacters(in: .whitespacesAndNewlines).prefix(4000)),
+                    characterCount: words.count, lineCount: lines, pictureCount: count, pictures: pictures))
+                let keep = rtfd.count <= 20_000_000
+                return ClipLoad(content: content, payload: keep ? .rich(rtfd: rtfd, text: words) : nil, thumbnail: small)
+            }
+        }
         var string = pasteboard.string(forType: .string)
         if string == nil, let rtf = pasteboard.data(forType: .rtf) {
             string = NSAttributedString(rtf: rtf, documentAttributes: nil)?.string
@@ -475,6 +516,11 @@ final class ClipboardWatcher: ObservableObject {
                 pasteboard.writeObjects([item])
             case .text(let string):
                 pasteboard.setString(string, forType: .string)
+            case .rich(let rtfd, let text):
+                let item = NSPasteboardItem()
+                item.setData(rtfd, forType: .rtfd)
+                if !text.isEmpty { item.setString(text, forType: .string) }
+                pasteboard.writeObjects([item])
             case .files(let urls):
                 pasteboard.writeObjects(urls as [NSURL])
             }
@@ -489,7 +535,9 @@ final class ClipboardWatcher: ObservableObject {
         case .text(let text):
             let line = text.preview.split(whereSeparator: \.isNewline)
                 .first { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
-            return line.map { $0.trimmingCharacters(in: .whitespaces) } ?? "(blank)"
+            if let line { return line.trimmingCharacters(in: .whitespaces) }
+            if text.pictureCount > 0 { return text.pictureCount == 1 ? "picture" : "\(text.pictureCount) pictures" }
+            return "(blank)"
         case .files(let files):
             return files.count == 1 ? files[0].name : "\(files.count) files"
         default:

@@ -34,13 +34,14 @@ A tiny always-on-top macOS window that shows what is on the clipboard — the pi
 - **Arrival you can see** — Universal Clipboard sends only the list of types at first and the bytes on demand. The widget asks for them at once and shows *receiving from iPhone / iPad* with a running timer, then the picture and how long it took (`⇣ 2.3 s`)
 - **Sound on arrival** — optional; any system sound, picked from the menu bar. It plays when the content is here, not when it was announced
 - **Text** — the head of it, cut with an ellipsis where the window ends, plus character and line counts
+- **Text with pictures** — styled text that carries pictures (RTFD) shows its words and the first picture, and says how many there are; from history it goes back as it came
 - **Files** — names, icons and sizes; a single copied image file is shown as the image
 - **Everything else** — the list of pasteboard types
 - **History of the last five** — the sidebar button (or **Show History** in the menu) opens the last five clipboards; a click puts one back. Two clicks when what's on the clipboard now isn't in history itself — a password, a type history can't hold — so a slip of the mouse can't lose it; the row asks *replace? click again*. For the screenshot that arrived and then got overwritten by a stray auto-copy in a terminal. The original bytes go back, plus a PNG when they were HEIC — plenty of apps take nothing else. Kept in memory only, never on disk, and concealed items never enter it
 - **Passwords stay hidden** — items marked concealed by password managers (the [nspasteboard.org](http://nspasteboard.org) convention) are never read, only reported as concealed
 - **Source app** — when the sender says who it is
 - **Light and dark** — follows macOS, or pinned to either under **Appearance** in the menu bar; the light theme has its own darker accents, so the yellow and orange states stay readable
-- **Floating, resizable, remembered** — stays above other windows on all Spaces; drag it anywhere, resize from any edge, position and size survive restarts. **Reset Widget Position** in the menu brings it back if a display goes away
+- **Floating, resizable, remembered** — stays above other windows on all Spaces (**Always on Top** in the menu turns that off); drag it anywhere, resize from any edge, position and size survive restarts. **Reset Widget Position** in the menu brings it back if a display goes away
 
 ## How It Works
 

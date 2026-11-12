@@ -22,6 +22,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
     private static let frameKey = "widgetFrame"
     private static let soundKey = "arrivalSound"
     private static let historyKey = "showHistory"
+    private static let onTopKey = "alwaysOnTop"
     private static let minContentWidth: CGFloat = 180
     /// Sidebar plus its 1-pt divider.
     private static let sidebarSpace = ClipView.sidebarWidth + 1
@@ -36,7 +37,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
-        UserDefaults.standard.register(defaults: [Self.soundKey: "Tink"])
+        UserDefaults.standard.register(defaults: [Self.soundKey: "Tink", Self.onTopKey: true])
 
         // A named pasteboard in place of the system one, for exercising the
         // app without touching what the user has copied — and without the
@@ -64,8 +65,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
             backing: .buffered,
             defer: false
         )
-        panel.level = .floating
-        panel.isFloatingPanel = true
+        applyLevel(to: panel)
         panel.hidesOnDeactivate = false
         panel.becomesKeyOnlyIfNeeded = true
         panel.collectionBehavior = [.canJoinAllSpaces, .stationary, .ignoresCycle, .fullScreenAuxiliary]
@@ -102,6 +102,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
         saveFrame(of: panel)
         panel.delegate = self
         return panel
+    }
+
+    /// Above other windows, or among them — «Always on Top» in the menu,
+    /// on unless turned off.
+    private func applyLevel(to panel: NSPanel) {
+        let onTop = UserDefaults.standard.bool(forKey: Self.onTopKey)
+        panel.level = onTop ? .floating : .normal
+        panel.isFloatingPanel = onTop
     }
 
     // The frame is kept by hand, not with setFrameAutosaveName: AppKit
@@ -172,8 +180,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
 
         let menu = NSMenu()
         menu.delegate = self
-        menu.addItem(item("Show Widget", #selector(toggleWidget)))
+        // No «Show Widget»: a monitor with its widget hidden shows nothing.
         menu.addItem(item("Show History", #selector(toggleHistory)))
+        menu.addItem(item("Always on Top", #selector(toggleOnTop)))
         let sound = NSMenuItem(title: "Sound on Arrival", action: nil, keyEquivalent: "")
         sound.submenu = soundMenu()
         menu.addItem(sound)
@@ -232,8 +241,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
             switch item.action {
             case #selector(selectAppearance(_:)):
                 item.state = (item.representedObject as? String) == AppearanceSetting.current.rawValue ? .on : .off
-            case #selector(toggleWidget):
-                item.state = panel.isVisible ? .on : .off
+            case #selector(toggleOnTop):
+                item.state = UserDefaults.standard.bool(forKey: Self.onTopKey) ? .on : .off
             case #selector(toggleHistory):
                 item.state = state.showHistory ? .on : .off
             case #selector(selectSound(_:)):
@@ -246,8 +255,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
 
     // MARK: - Actions
 
-    @objc private func toggleWidget() {
-        if panel.isVisible { panel.orderOut(nil) } else { panel.orderFrontRegardless() }
+    @objc private func toggleOnTop() {
+        UserDefaults.standard.set(!UserDefaults.standard.bool(forKey: Self.onTopKey), forKey: Self.onTopKey)
+        applyLevel(to: panel)
+        panel.orderFrontRegardless()
     }
 
     /// The sidebar opens to the left and the window grows by its width, so

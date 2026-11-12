@@ -246,7 +246,7 @@ struct ClipView: View {
         switch watcher.content {
         case .empty:            return "empty"
         case .image(let image): return image.fileName == nil ? "image" : "image file"
-        case .text:             return "text"
+        case .text(let text):   return text.pictureCount == 0 ? "text" : text.preview.isEmpty ? "image in text" : "text + image"
         case .files(let files): return files.count == 1 ? "file" : "\(files.count) files"
         case .concealed:        return "concealed"
         case .other:            return "other"
@@ -278,6 +278,24 @@ struct ClipView: View {
                 .aspectRatio(contentMode: .fit)
                 .clipShape(RoundedRectangle(cornerRadius: 4))
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
+        case .text(let text) where !text.pictures.isEmpty:
+            // Styled text with pictures: the words in a few lines, then the
+            // first picture in the room that is left.
+            VStack(alignment: .leading, spacing: 6) {
+                if !text.preview.isEmpty {
+                    Text(verbatim: text.preview)
+                        .font(.system(size: 11, design: .monospaced))
+                        .foregroundColor(theme.ink.opacity(0.85))
+                        .lineLimit(3)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                Image(decorative: text.pictures[0], scale: 1)
+                    .resizable()
+                    .interpolation(.high)
+                    .aspectRatio(contentMode: .fit)
+                    .clipShape(RoundedRectangle(cornerRadius: 4))
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            }
         case .text(let text):
             // Not a viewer: the head of the text, cut with an ellipsis where
             // the window ends.
@@ -417,6 +435,9 @@ struct ClipView: View {
         case .text(let text):
             parts.append("\(text.characterCount) chars")
             if text.lineCount > 1 { parts.append("\(text.lineCount) lines") }
+            if text.pictureCount > 0 {
+                parts.append(text.pictureCount == 1 ? "1 picture" : "\(text.pictureCount) pictures")
+            }
         case .files(let files):
             let total = files.reduce(Int64(0)) { $0 + ($1.isDirectory ? 0 : $1.byteCount ?? 0) }
             if total > 0 { parts.append(Self.bytes(total)) }
