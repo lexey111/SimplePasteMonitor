@@ -18,15 +18,12 @@ A tiny always-on-top macOS window that shows what is on the clipboard — the pi
 ### Install
 
 1. Open the DMG and drag **SimplePasteMonitor** to **Applications**
-2. **The app is not notarized**, so macOS will block it on first launch:
-   - Open **System Settings → Privacy & Security**, scroll to the Security section and click **Open Anyway** next to SimplePasteMonitor
-   - Or: right-click the app in Applications → **Open** → **Open**
+2. The app is signed with a Developer ID and notarized by Apple, so it opens like any other
 3. **If macOS asks about clipboard access** — since 15.4 it can, depending on settings, before an app reads what other apps copied. A monitor reads on every copy, so "Ask" would mean a dialog each time:
    - **System Settings → Privacy & Security → Paste from Other Apps** → set **SimplePasteMonitor** to **Allow**
    - While the setting is "Ask" the widget shows a yellow *macOS asks on every copy* line with a shortcut to that page; the menu bar icon has it too (**Clipboard Privacy Settings…**). If access is denied, the widget says so
    - If System Settings offers to quit and reopen the app after the change, accept
 
-> The app is ad-hoc signed. After installing a new version macOS may treat it as a new app and ask for clipboard access again.
 
 ## Features
 
@@ -51,6 +48,6 @@ macOS has no notification for clipboard changes, so the app polls `NSPasteboard.
 
 - macOS 15.4+, Xcode 26+
 - Open `SimplePasteMonitor.xcodeproj`, build and run
-- `./scripts/build-release.sh 1.3.1` builds a Release `.app` and packs it into `build/SimplePasteMonitor-1.3.1.dmg`
+- `./scripts/build-release.sh 1.3.1` builds a Release `.app` and packs it into `build/SimplePasteMonitor-1.3.1.dmg`; with a Developer ID Application certificate in the keychain it signs the app and the DMG, notarizes the DMG and staples the ticket (credentials from the keychain profile `simple-utilities-notary`), otherwise the build is ad-hoc signed
 
 Setting `SPM_PASTEBOARD=<name>` in the environment makes the app watch a private named pasteboard instead of the system one — handy for testing without touching your clipboard (and without the privacy prompt, which guards only the system pasteboard).
